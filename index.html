@@ -12,9 +12,32 @@
 </head>
 <body>
 
-  <div class="app-container">
+  <!-- PANTALLA DE LOGIN (Se oculta sola al iniciar sesión) -->
+  <div id="login-screen" class="login-overlay">
+    <div class="login-card">
+      <div class="login-icon"><i class="fa-solid fa-lock"></i></div>
+      <h2>Acceso Restringido</h2>
+      <p>Introduce tus credenciales para acceder a tus finanzas.</p>
+      
+      <form id="login-form" onsubmit="handleLogin(event)">
+        <div class="form-group">
+          <label for="login-email">Correo Electrónico</label>
+          <input type="email" id="login-email" placeholder="tu-correo@gmail.com" required autofocus>
+        </div>
+        <div class="form-group">
+          <label for="login-password">Contraseña</label>
+          <input type="password" id="login-password" placeholder="••••••••" required>
+        </div>
+        <div id="login-error" class="login-error hidden">Correo o contraseña incorrectos.</div>
+        <button type="submit" class="btn-primary" style="width: 100%; margin-top: 10px;">Entrar</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- APLICACIÓN PRINCIPAL (Oculta hasta que hagas login) -->
+  <div class="app-container hidden" id="main-app">
     
-    <!-- Encabezado con Fecha, Hora y Botón de Calcular Eventos -->
+    <!-- Encabezado con Fecha, Hora y Botones -->
     <header class="app-header">
       <div class="date-time-block">
         <div class="current-date" id="current-date-text">Cargando fecha...</div>
@@ -23,6 +46,9 @@
       <div class="header-actions">
         <button id="btn-calc-events" class="btn-secondary btn-accent" onclick="openCalcModal()">
           <i class="fa-solid fa-calculator"></i> Calcular Eventos
+        </button>
+        <button id="btn-logout" class="btn-secondary" onclick="logoutUser()" title="Cerrar sesión">
+          <i class="fa-solid fa-arrow-right-from-bracket"></i>
         </button>
       </div>
     </header>
