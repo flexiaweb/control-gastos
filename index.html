@@ -130,7 +130,7 @@
 
   </div>
 
-  <!-- Modal para Añadir Movimiento Normal (Con eliminación de chips) -->
+  <!-- Modal para Añadir Movimiento (Con selector de fecha y chips) -->
   <div id="modal" class="modal-overlay hidden">
     <div class="modal-content">
       <div class="modal-header">
@@ -151,6 +151,12 @@
         <div class="form-group">
           <label for="tx-concept">Concepto</label>
           <input type="text" id="tx-concept" placeholder="Ej: Alquiler, Fiesta, Mercadona..." autocomplete="off" required>
+        </div>
+
+        <!-- Selector de Fecha Personalizado -->
+        <div class="form-group">
+          <label for="tx-date">Fecha</label>
+          <input type="date" id="tx-date" required>
         </div>
 
         <!-- Chips de conceptos con opción de borrado -->
@@ -203,7 +209,7 @@
     </div>
   </div>
 
-  <!-- JS Principal -->
+  <!-- JS Principal como Módulo -->
   <script type="module" src="app.js"></script>
 </body>
 </html>

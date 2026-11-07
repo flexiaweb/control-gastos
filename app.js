@@ -28,17 +28,10 @@ const TYPE_CONFIG = {
 
 // Inicialización segura al cargar el DOM
 document.addEventListener('DOMContentLoaded', () => {
-  // 1. Cargar el reloj y la fecha inmediatamente (evita que se quede en blanco)
   updateClock();
   setInterval(updateClock, 1000);
-
-  // 2. Calcular la barra del ciclo
   setupCycleProgress();
-
-  // 3. Conectar los botones del HTML mediante JavaScript (evita errores de módulos)
   initEventListeners();
-
-  // 4. Cargar los datos desde Firebase
   loadTransactionsFromFirebase();
 });
 
@@ -54,9 +47,8 @@ function updateClock() {
   document.getElementById('current-time-text').textContent = now.toLocaleTimeString('es-ES', timeOptions);
 }
 
-// Conectar eventos de los botones de forma limpia
+// Conectar eventos de los botones
 function initEventListeners() {
-  // Botones para abrir modales de Ingresos / Gastos
   document.querySelectorAll('.btn-add-green').forEach(btn => {
     btn.addEventListener('click', () => openModal('income'));
   });
@@ -64,11 +56,9 @@ function initEventListeners() {
     btn.addEventListener('click', () => openModal('expense'));
   });
 
-  // Botón calculadora de eventos
   const btnCalc = document.getElementById('btn-calc-events');
   if (btnCalc) btnCalc.addEventListener('click', openCalcModal);
 
-  // Formularios y cierres
   const txForm = document.getElementById('tx-form');
   if (txForm) txForm.addEventListener('submit', handleFormSubmit);
 }
@@ -78,7 +68,7 @@ function formatCurrency(amount) {
   return new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(amount);
 }
 
-// Cargar transacciones desde Firestore
+// Cargar transacciones desde Firestore y ordenarlas
 async function loadTransactionsFromFirebase() {
   try {
     const querySnapshot = await getDocs(collection(db, "transactions"));
@@ -86,10 +76,23 @@ async function loadTransactionsFromFirebase() {
     querySnapshot.forEach((docSnap) => {
       transactions.push({ firebaseId: docSnap.id, ...docSnap.data() });
     });
+    sortTransactions();
     renderApp();
   } catch (error) {
     console.error("Error al cargar de Firebase:", error);
   }
+}
+
+// Ordenar transacciones por fecha metida de más reciente a más antigua
+function sortTransactions() {
+  transactions.sort((a, b) => {
+    const dateA = new Date(a.rawDate || a.createdAt || 0);
+    const dateB = new Date(b.rawDate || b.createdAt || 0);
+    if (dateB.getTime() !== dateA.getTime()) {
+      return dateB - dateA;
+    }
+    return (b.createdAt || 0) - (a.createdAt || 0);
+  });
 }
 
 // Renderizado principal
@@ -117,7 +120,7 @@ function calculateTotals() {
   calculateEventSimulation();
 }
 
-// Lógica del ciclo: Desde el día 28 hasta el ÚLTIMO día del mes siguiente
+// Lógica del ciclo
 function setupCycleProgress() {
   const now = new Date();
   const day = now.getDate();
@@ -162,7 +165,7 @@ function setupCycleProgress() {
   starMarker.style.left = `${starPercentage}%`;
 }
 
-// Renderizado de Tabla Única
+// Renderizado de Tabla
 function renderTable() {
   const tbody = document.getElementById('tx-list');
   const emptyState = document.getElementById('empty-state');
@@ -178,7 +181,7 @@ function renderTable() {
   
   emptyState.classList.add('hidden');
 
-  [...transactions].reverse().forEach(t => {
+  transactions.forEach(t => {
     const tr = document.createElement('tr');
     const isIncome = t.type === 'income';
     const config = TYPE_CONFIG[t.type];
@@ -199,7 +202,6 @@ function renderTable() {
     tbody.appendChild(tr);
   });
 
-  // Asignar eventos de borrado dinámicamente
   document.querySelectorAll('.btn-delete').forEach(btn => {
     btn.addEventListener('click', () => {
       deleteTransaction(btn.getAttribute('data-id'));
@@ -207,7 +209,7 @@ function renderTable() {
   });
 }
 
-// Modal Normal
+// Abrir Modal y poner la fecha de hoy por defecto
 function openModal(type) {
   const modal = document.getElementById('modal');
   const modalTitle = document.getElementById('modal-title');
@@ -219,6 +221,9 @@ function openModal(type) {
   document.getElementById('tx-amount').value = '';
   document.getElementById('tx-concept').value = '';
 
+  const today = new Date().toISOString().split('T')[0];
+  document.getElementById('tx-date').value = today;
+
   renderChips();
   modal.classList.remove('hidden');
 }
@@ -226,10 +231,8 @@ function openModal(type) {
 window.closeModal = function() {
   document.getElementById('modal').classList.add('hidden');
 }
-// Hacer accesible el cierre desde el HTML
-window.closeModal = closeModal;
 
-// Renderizar Chips interactivos con botón de eliminar
+// Renderizar Chips interactivos
 function renderChips() {
   const chipsContainer = document.getElementById('saved-chips');
   chipsContainer.innerHTML = '';
@@ -263,7 +266,7 @@ function renderChips() {
   });
 }
 
-// Modal Calculadora de Eventos
+// Modales Calculadora
 function openCalcModal() {
   document.getElementById('calc-event-name').value = '';
   document.getElementById('calc-event-amount').value = '';
@@ -276,7 +279,6 @@ function closeCalcModal() {
 }
 window.closeCalcModal = closeCalcModal;
 
-// Simular cálculo en tiempo real
 window.calculateEventSimulation = function() {
   const totalIncome = transactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
   const totalExpense = transactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
@@ -295,32 +297,38 @@ window.calculateEventSimulation = function() {
   }
 }
 
-// Formulario submit normal (Guarda en Firebase Firestore)
+// Formulario submit (Guarda en Firebase y reordena)
 async function handleFormSubmit(e) {
   e.preventDefault();
 
   const type = document.getElementById('tx-type').value;
   const amount = parseFloat(document.getElementById('tx-amount').value);
   const concept = document.getElementById('tx-concept').value.trim();
+  const rawDate = document.getElementById('tx-date').value;
 
-  if (!amount || !concept) return;
+  if (!amount || !concept || !rawDate) return;
 
   if (!savedConcepts.includes(concept)) {
     savedConcepts.push(concept);
     localStorage.setItem('my_finances_concepts', JSON.stringify(savedConcepts));
   }
 
+  const [year, month, day] = rawDate.split('-');
+  const formattedDate = `${day}/${month}/${year}`;
+
   const newTx = {
     type,
     concept,
     amount,
-    date: new Date().toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+    date: formattedDate,
+    rawDate: rawDate,
     createdAt: Date.now()
   };
 
   try {
     const docRef = await addDoc(collection(db, "transactions"), newTx);
     transactions.push({ firebaseId: docRef.id, ...newTx });
+    sortTransactions();
     renderApp();
     closeModal();
   } catch (error) {
@@ -329,7 +337,7 @@ async function handleFormSubmit(e) {
   }
 }
 
-// Eliminar transacción de Firebase Firestore
+// Eliminar transacción
 async function deleteTransaction(firebaseId) {
   if (confirm("¿Seguro que quieres eliminar este movimiento?")) {
     try {
