@@ -157,22 +157,31 @@ function renderApp() {
   renderTable();
 }
 
-// Cálculo de totales, Queda Real y Total Ahorros (Declarado correctamente una sola vez)
+// Cálculo de totales, Queda Real y Total Ahorros directamente desde Firebase
 function calculateTotals() {
-  const totalIncome = transactions
-    .filter(t => t.type === 'income')
-    .reduce((acc, t) => acc + t.amount, 0);
+  let totalIncome = 0;
+  let totalExpense = 0;
+  let totalSavings = 0;
 
-  const totalExpense = transactions
-    .filter(t => t.type === 'expense')
-    .reduce((acc, t) => acc + t.amount, 0);
+  transactions.forEach(t => {
+    const amount = parseFloat(t.amount) || 0;
+    const type = t.type ? t.type.toLowerCase() : '';
+    const concept = t.concept ? t.concept.toLowerCase() : '';
+
+    // 1. Acumular Ingresos y Gastos generales
+    if (type === 'income') {
+      totalIncome += amount;
+    } else if (type === 'expense') {
+      totalExpense += amount;
+    }
+
+    // 2. Si el concepto contiene "ahorro", sumar al bote de ahorros independientemente del tipo
+    if (concept.includes('ahorro')) {
+      totalSavings += amount;
+    }
+  });
 
   const actualRemaining = totalIncome - totalExpense;
-
-  // Suma de conceptos que contienen "ahorro" (ignora mayúsculas y minúsculas)
-  const totalSavings = transactions
-    .filter(t => t.concept && t.concept.toLowerCase().includes('ahorro'))
-    .reduce((acc, t) => acc + (t.type === 'income' ? t.amount : -t.amount), 0);
 
   const incEl = document.getElementById('total-income');
   const expEl = document.getElementById('total-expense');
