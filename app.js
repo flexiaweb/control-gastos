@@ -1,7 +1,23 @@
-// Estado inicial limpio
-let transactions = JSON.parse(localStorage.getItem('my_finances_txs')) || [];
+// Importar las funciones necesarias de los SDKs de Firebase
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-// Conceptos memorizados que empiezan vacíos y se llenan contigo
+// Tu configuración de Firebase
+const firebaseConfig = {
+  apiKey: "AIzaSyClSvaF8nst3oUqEeZKPKJbYmJq34UNm24",
+  authDomain: "controlgastos-243e2.firebaseapp.com",
+  projectId: "controlgastos-243e2",
+  storageBucket: "controlgastos-243e2.firebasestorage.app",
+  messagingSenderId: "100307698408",
+  appId: "1:100307698408:web:5b2ed06fee5d15cc22ff5d"
+};
+
+// Inicializar Firebase y Firestore
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+// Estado inicial limpio
+let transactions = [];
 let savedConcepts = JSON.parse(localStorage.getItem('my_finances_concepts')) || [];
 
 // Configuración de tipos
@@ -11,11 +27,11 @@ const TYPE_CONFIG = {
 };
 
 // Inicialización
-document.addEventListener('DOMContentLoaded', () => {
-  renderApp();
+document.addEventListener('DOMContentLoaded', async () => {
   setupCycleProgress();
   updateClock();
   setInterval(updateClock, 1000);
+  await loadTransactionsFromFirebase();
 });
 
 // Reloj y Fecha en tiempo real
@@ -34,11 +50,24 @@ function formatCurrency(amount) {
   return new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(amount);
 }
 
+// Cargar transacciones desde Firestore
+async function loadTransactionsFromFirebase() {
+  try {
+    const querySnapshot = await getDocs(collection(db, "transactions"));
+    transactions = [];
+    querySnapshot.forEach((docSnap) => {
+      transactions.push({ firebaseId: docSnap.id, ...docSnap.data() });
+    });
+    renderApp();
+  } catch (error) {
+    console.error("Error al cargar de Firebase:", error);
+  }
+}
+
 // Renderizado principal
 function renderApp() {
   calculateTotals();
   renderTable();
-  saveToLocalStorage();
 }
 
 // Cálculo de totales y Queda Real
@@ -134,7 +163,7 @@ function renderTable() {
         ${config.sign} ${formatCurrency(t.amount)}
       </td>
       <td class="text-center">
-        <button class="btn-delete" onclick="deleteTransaction(${t.id})" title="Eliminar">
+        <button class="btn-delete" onclick="deleteTransaction('${t.firebaseId}')" title="Eliminar">
           <i class="fa-regular fa-trash-can"></i>
         </button>
       </td>
@@ -144,7 +173,7 @@ function renderTable() {
 }
 
 // Modal Normal
-function openModal(type) {
+window.openModal = function(type) {
   const modal = document.getElementById('modal');
   const modalTitle = document.getElementById('modal-title');
   const txTypeInput = document.getElementById('tx-type');
@@ -159,7 +188,7 @@ function openModal(type) {
   modal.classList.remove('hidden');
 }
 
-function closeModal() {
+window.closeModal = function() {
   document.getElementById('modal').classList.add('hidden');
 }
 
@@ -182,42 +211,35 @@ function renderChips() {
       <span class="chip-remove" title="Eliminar concepto"><i class="fa-solid fa-xmark"></i></span>
     `;
 
-    // Click en la etiqueta -> Autocompleta el campo
     chip.querySelector('.chip-text').onclick = () => {
       document.getElementById('tx-concept').value = concept;
     };
 
-    // Click en la 'X' -> Borra la etiqueta de tus conceptos guardados
     chip.querySelector('.chip-remove').onclick = (e) => {
       e.stopPropagation();
-      removeConcept(concept);
+      savedConcepts = savedConcepts.filter(c => c !== concept);
+      localStorage.setItem('my_finances_concepts', JSON.stringify(savedConcepts));
+      renderChips();
     };
 
     chipsContainer.appendChild(chip);
   });
 }
 
-// Eliminar un concepto específico de la lista guardada
-function removeConcept(conceptToRemove) {
-  savedConcepts = savedConcepts.filter(c => c !== conceptToRemove);
-  localStorage.setItem('my_finances_concepts', JSON.stringify(savedConcepts));
-  renderChips();
-}
-
 // Modal Calculadora de Eventos
-function openCalcModal() {
+window.openCalcModal = function() {
   document.getElementById('calc-event-name').value = '';
   document.getElementById('calc-event-amount').value = '';
   calculateEventSimulation();
   document.getElementById('calc-modal').classList.remove('hidden');
 }
 
-function closeCalcModal() {
+window.closeCalcModal = function() {
   document.getElementById('calc-modal').classList.add('hidden');
 }
 
 // Simular cálculo en tiempo real
-function calculateEventSimulation() {
+window.calculateEventSimulation = function() {
   const totalIncome = transactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
   const totalExpense = transactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
   const currentRemaining = totalIncome - totalExpense;
@@ -235,8 +257,8 @@ function calculateEventSimulation() {
   }
 }
 
-// Formulario submit normal (Guarda el concepto como chip automático)
-function handleFormSubmit(e) {
+// Formulario submit normal (Guarda en Firebase Firestore)
+window.handleFormSubmit = async function(e) {
   e.preventDefault();
 
   const type = document.getElementById('tx-type').value;
@@ -245,32 +267,40 @@ function handleFormSubmit(e) {
 
   if (!amount || !concept) return;
 
-  // Guardar automáticamente en memoria si el concepto es nuevo
   if (!savedConcepts.includes(concept)) {
     savedConcepts.push(concept);
     localStorage.setItem('my_finances_concepts', JSON.stringify(savedConcepts));
   }
 
   const newTx = {
-    id: Date.now(),
     type,
     concept,
     amount,
-    date: new Date().toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    date: new Date().toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+    createdAt: Date.now()
   };
 
-  transactions.push(newTx);
-  renderApp();
-  closeModal();
+  try {
+    const docRef = await addDoc(collection(db, "transactions"), newTx);
+    transactions.push({ firebaseId: docRef.id, ...newTx });
+    renderApp();
+    closeModal();
+  } catch (error) {
+    console.error("Error al guardar en Firebase:", error);
+    alert("Hubo un error al guardar el movimiento en la nube.");
+  }
 }
 
-// Eliminar transacción
-function deleteTransaction(id) {
-  transactions = transactions.filter(t => t.id !== id);
-  renderApp();
-}
-
-// Guardar en LocalStorage
-function saveToLocalStorage() {
-  localStorage.setItem('my_finances_txs', JSON.stringify(transactions));
+// Eliminar transacción de Firebase Firestore
+window.deleteTransaction = async function(firebaseId) {
+  if (confirm("¿Seguro que quieres eliminar este movimiento?")) {
+    try {
+      await deleteDoc(doc(db, "transactions", firebaseId));
+      transactions = transactions.filter(t => t.firebaseId !== firebaseId);
+      renderApp();
+    } catch (error) {
+      console.error("Error al eliminar de Firebase:", error);
+      alert("Hubo un error al eliminar el movimiento.");
+    }
+  }
 }
