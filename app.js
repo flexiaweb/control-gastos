@@ -26,12 +26,20 @@ const TYPE_CONFIG = {
   expense: { label: 'Gasto', badgeClass: 'badge-expense', sign: '-' }
 };
 
-// Inicialización
-document.addEventListener('DOMContentLoaded', async () => {
-  setupCycleProgress();
+// Inicialización segura al cargar el DOM
+document.addEventListener('DOMContentLoaded', () => {
+  // 1. Cargar el reloj y la fecha inmediatamente (evita que se quede en blanco)
   updateClock();
   setInterval(updateClock, 1000);
-  await loadTransactionsFromFirebase();
+
+  // 2. Calcular la barra del ciclo
+  setupCycleProgress();
+
+  // 3. Conectar los botones del HTML mediante JavaScript (evita errores de módulos)
+  initEventListeners();
+
+  // 4. Cargar los datos desde Firebase
+  loadTransactionsFromFirebase();
 });
 
 // Reloj y Fecha en tiempo real
@@ -39,10 +47,30 @@ function updateClock() {
   const now = new Date();
   
   const dateOptions = { weekday: 'long', day: 'numeric', month: 'long' };
-  document.getElementById('current-date-text').textContent = now.toLocaleDateString('es-ES', dateOptions);
+  const dateStr = now.toLocaleDateString('es-ES', dateOptions);
+  document.getElementById('current-date-text').textContent = dateStr.charAt(0).toUpperCase() + dateStr.slice(1);
 
   const timeOptions = { hour: '2-digit', minute: '2-digit', second: '2-digit' };
   document.getElementById('current-time-text').textContent = now.toLocaleTimeString('es-ES', timeOptions);
+}
+
+// Conectar eventos de los botones de forma limpia
+function initEventListeners() {
+  // Botones para abrir modales de Ingresos / Gastos
+  document.querySelectorAll('.btn-add-green').forEach(btn => {
+    btn.addEventListener('click', () => openModal('income'));
+  });
+  document.querySelectorAll('.btn-add-red').forEach(btn => {
+    btn.addEventListener('click', () => openModal('expense'));
+  });
+
+  // Botón calculadora de eventos
+  const btnCalc = document.getElementById('btn-calc-events');
+  if (btnCalc) btnCalc.addEventListener('click', openCalcModal);
+
+  // Formularios y cierres
+  const txForm = document.getElementById('tx-form');
+  if (txForm) txForm.addEventListener('submit', handleFormSubmit);
 }
 
 // Formateador de moneda (€)
@@ -163,17 +191,24 @@ function renderTable() {
         ${config.sign} ${formatCurrency(t.amount)}
       </td>
       <td class="text-center">
-        <button class="btn-delete" onclick="deleteTransaction('${t.firebaseId}')" title="Eliminar">
+        <button class="btn-delete" data-id="${t.firebaseId}" title="Eliminar">
           <i class="fa-regular fa-trash-can"></i>
         </button>
       </td>
     `;
     tbody.appendChild(tr);
   });
+
+  // Asignar eventos de borrado dinámicamente
+  document.querySelectorAll('.btn-delete').forEach(btn => {
+    btn.addEventListener('click', () => {
+      deleteTransaction(btn.getAttribute('data-id'));
+    });
+  });
 }
 
 // Modal Normal
-window.openModal = function(type) {
+function openModal(type) {
   const modal = document.getElementById('modal');
   const modalTitle = document.getElementById('modal-title');
   const txTypeInput = document.getElementById('tx-type');
@@ -191,6 +226,8 @@ window.openModal = function(type) {
 window.closeModal = function() {
   document.getElementById('modal').classList.add('hidden');
 }
+// Hacer accesible el cierre desde el HTML
+window.closeModal = closeModal;
 
 // Renderizar Chips interactivos con botón de eliminar
 function renderChips() {
@@ -227,16 +264,17 @@ function renderChips() {
 }
 
 // Modal Calculadora de Eventos
-window.openCalcModal = function() {
+function openCalcModal() {
   document.getElementById('calc-event-name').value = '';
   document.getElementById('calc-event-amount').value = '';
   calculateEventSimulation();
   document.getElementById('calc-modal').classList.remove('hidden');
 }
 
-window.closeCalcModal = function() {
+function closeCalcModal() {
   document.getElementById('calc-modal').classList.add('hidden');
 }
+window.closeCalcModal = closeCalcModal;
 
 // Simular cálculo en tiempo real
 window.calculateEventSimulation = function() {
@@ -258,7 +296,7 @@ window.calculateEventSimulation = function() {
 }
 
 // Formulario submit normal (Guarda en Firebase Firestore)
-window.handleFormSubmit = async function(e) {
+async function handleFormSubmit(e) {
   e.preventDefault();
 
   const type = document.getElementById('tx-type').value;
@@ -292,7 +330,7 @@ window.handleFormSubmit = async function(e) {
 }
 
 // Eliminar transacción de Firebase Firestore
-window.deleteTransaction = async function(firebaseId) {
+async function deleteTransaction(firebaseId) {
   if (confirm("¿Seguro que quieres eliminar este movimiento?")) {
     try {
       await deleteDoc(doc(db, "transactions", firebaseId));
