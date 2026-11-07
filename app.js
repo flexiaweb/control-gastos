@@ -22,6 +22,10 @@ const db = getFirestore(app);
 let transactions = [];
 let savedConcepts = JSON.parse(localStorage.getItem('my_finances_concepts')) || [];
 
+// Control de Paginación
+let currentPage = 1;
+const recordsPerPage = 10;
+
 // Configuración de tipos
 const TYPE_CONFIG = {
   income: { label: 'Ingreso', badgeClass: 'badge-income', sign: '+' },
@@ -38,18 +42,12 @@ document.addEventListener('DOMContentLoaded', () => {
   // Vigilar estado de autenticación
   onAuthStateChanged(auth, (user) => {
     if (user) {
-      // Si estás logueado, ocultar login y mostrar la app
-      const loginScreen = document.getElementById('login-screen');
-      const mainApp = document.getElementById('main-app');
-      if (loginScreen) loginScreen.classList.add('hidden');
-      if (mainApp) mainApp.classList.remove('hidden');
+      document.getElementById('login-screen')?.classList.add('hidden');
+      document.getElementById('main-app')?.classList.remove('hidden');
       loadTransactionsFromFirebase();
     } else {
-      // Si no estás logueado, mostrar pantalla de login y ocultar app
-      const loginScreen = document.getElementById('login-screen');
-      const mainApp = document.getElementById('main-app');
-      if (loginScreen) loginScreen.classList.remove('hidden');
-      if (mainApp) mainApp.classList.add('hidden');
+      document.getElementById('login-screen')?.classList.remove('hidden');
+      document.getElementById('main-app')?.classList.add('hidden');
     }
   });
 });
@@ -63,10 +61,10 @@ window.handleLogin = async function(e) {
 
   try {
     await signInWithEmailAndPassword(auth, email, password);
-    if (errorBox) errorBox.classList.add('hidden');
+    errorBox?.classList.add('hidden');
   } catch (error) {
     console.error("Error de autenticación:", error);
-    if (errorBox) errorBox.classList.remove('hidden');
+    errorBox?.classList.remove('hidden');
   }
 }
 
@@ -81,10 +79,19 @@ window.logoutUser = async function() {
   }
 }
 
+// Abrir y cerrar Modal de Ahorros
+window.openSavingsModal = function() {
+  calculateTotals();
+  document.getElementById('savings-modal')?.classList.remove('hidden');
+}
+
+window.closeSavingsModal = function() {
+  document.getElementById('savings-modal')?.classList.add('hidden');
+}
+
 // Reloj y Fecha en tiempo real
 function updateClock() {
   const now = new Date();
-  
   const dateOptions = { weekday: 'long', day: 'numeric', month: 'long' };
   const dateStr = now.toLocaleDateString('es-ES', dateOptions);
   const dateEl = document.getElementById('current-date-text');
@@ -125,6 +132,7 @@ async function loadTransactionsFromFirebase() {
       transactions.push({ firebaseId: docSnap.id, ...docSnap.data() });
     });
     sortTransactions();
+    currentPage = 1;
     renderApp();
   } catch (error) {
     console.error("Error al cargar de Firebase:", error);
@@ -149,7 +157,7 @@ function renderApp() {
   renderTable();
 }
 
-// Cálculo de totales y Queda Real
+// Cálculo de totales, Queda Real y Total Ahorros (Declarado correctamente una sola vez)
 function calculateTotals() {
   const totalIncome = transactions
     .filter(t => t.type === 'income')
@@ -161,13 +169,20 @@ function calculateTotals() {
 
   const actualRemaining = totalIncome - totalExpense;
 
+  // Suma de conceptos que contienen "ahorro" (ignora mayúsculas y minúsculas)
+  const totalSavings = transactions
+    .filter(t => t.concept && t.concept.toLowerCase().includes('ahorro'))
+    .reduce((acc, t) => acc + (t.type === 'income' ? t.amount : -t.amount), 0);
+
   const incEl = document.getElementById('total-income');
   const expEl = document.getElementById('total-expense');
   const remEl = document.getElementById('actual-remaining');
+  const modalSavEl = document.getElementById('modal-savings-amount');
 
   if (incEl) incEl.textContent = formatCurrency(totalIncome);
   if (expEl) expEl.textContent = formatCurrency(totalExpense);
   if (remEl) remEl.textContent = formatCurrency(actualRemaining);
+  if (modalSavEl) modalSavEl.textContent = formatCurrency(Math.max(0, totalSavings));
   
   calculateEventSimulation();
 }
@@ -219,11 +234,12 @@ function setupCycleProgress() {
   if (starMarker) starMarker.style.left = `${starPercentage}%`;
 }
 
-// Renderizado de Tabla
+// Renderizado de Tabla con Paginación (10 registros por página)
 function renderTable() {
   const tbody = document.getElementById('tx-list');
   const emptyState = document.getElementById('empty-state');
   const countBadge = document.getElementById('tx-count');
+  const paginationControls = document.getElementById('pagination-controls');
 
   if (!tbody) return;
 
@@ -232,12 +248,23 @@ function renderTable() {
 
   if (transactions.length === 0) {
     if (emptyState) emptyState.classList.remove('hidden');
+    if (paginationControls) paginationControls.style.display = 'none';
     return;
   }
   
   if (emptyState) emptyState.classList.add('hidden');
+  if (paginationControls) paginationControls.style.display = 'flex';
 
-  transactions.forEach(t => {
+  // Lógica de Paginación
+  const totalPages = Math.ceil(transactions.length / recordsPerPage) || 1;
+  if (currentPage > totalPages) currentPage = totalPages;
+  if (currentPage < 1) currentPage = 1;
+
+  const start = (currentPage - 1) * recordsPerPage;
+  const end = start + recordsPerPage;
+  const paginatedTransactions = transactions.slice(start, end);
+
+  paginatedTransactions.forEach(t => {
     const tr = document.createElement('tr');
     const isIncome = t.type === 'income';
     const config = TYPE_CONFIG[t.type];
@@ -258,11 +285,26 @@ function renderTable() {
     tbody.appendChild(tr);
   });
 
+  // Actualizar controles de paginación
+  const pageInfo = document.getElementById('page-info');
+  const btnPrev = document.getElementById('btn-prev-page');
+  const btnNext = document.getElementById('btn-next-page');
+
+  if (pageInfo) pageInfo.textContent = `Página ${currentPage} de ${totalPages}`;
+  if (btnPrev) btnPrev.disabled = currentPage === 1;
+  if (btnNext) btnNext.disabled = currentPage === totalPages;
+
   document.querySelectorAll('.btn-delete').forEach(btn => {
     btn.addEventListener('click', () => {
       deleteTransaction(btn.getAttribute('data-id'));
     });
   });
+}
+
+// Cambiar de página
+window.changePage = function(direction) {
+  currentPage += direction;
+  renderTable();
 }
 
 // Abrir Modal y poner la fecha de hoy por defecto
@@ -398,6 +440,7 @@ async function handleFormSubmit(e) {
     const docRef = await addDoc(collection(db, "transactions"), newTx);
     transactions.push({ firebaseId: docRef.id, ...newTx });
     sortTransactions();
+    currentPage = 1;
     renderApp();
     window.closeModal();
   } catch (error) {
