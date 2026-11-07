@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mi Control Financiero</title>
+  
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- CSS Personalizado -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <div class="app-container">
+    
+    <!-- Encabezado con Fecha, Hora y Botón de Calcular Eventos -->
+    <header class="app-header">
+      <div class="date-time-block">
+        <div class="current-date" id="current-date-text">Cargando fecha...</div>
+        <div class="current-time" id="current-time-text">00:00:00</div>
+      </div>
+      <div class="header-actions">
+        <button id="btn-calc-events" class="btn-secondary btn-accent" onclick="openCalcModal()">
+          <i class="fa-solid fa-calculator"></i> Calcular Eventos
+        </button>
+      </div>
+    </header>
+
+    <!-- Tarjeta Principal Superior: Queda Real -->
+    <section class="hero-balance-card">
+      <div class="hero-header">
+        <span class="hero-label"><i class="fa-solid fa-scale-balanced"></i> DINERO REAL DISPONIBLE</span>
+        <span class="hero-badge" id="days-left-badge">Quedan -- días para la nómina</span>
+      </div>
+      <div class="hero-amount" id="actual-remaining">0,00 €</div>
+      
+      <!-- Barra de Progreso del Ciclo (28 al final del mes siguiente) -->
+      <div class="cycle-progress-container">
+        <div class="cycle-info">
+          <span id="cycle-start-text">Inicio: 28 oct</span>
+          <span id="cycle-end-text">Fin de mes: 30 nov</span>
+        </div>
+        
+        <div class="progress-wrapper">
+          <!-- Etiqueta flotante del día actual con formato Hoy (D/MM) -->
+          <div class="day-pin" id="day-pin">Hoy (--/--)</div>
+          
+          <div class="progress-bar-bg">
+            <div class="progress-bar-fill" id="cycle-progress-bar"></div>
+            
+            <!-- Marca en forma de ESTRELLA para la Nómina el día 28 -->
+            <div class="star-marker" id="star-marker" title="Nómina (Día 28)">
+              <i class="fa-solid fa-star"></i>
+              <span class="star-tooltip">Nómina (28)</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tarjetas de Ingresos y Gastos -->
+    <section class="cards-grid">
+      
+      <!-- Tarjeta 1: Ingresos -->
+      <div class="card card-income">
+        <div class="card-header">
+          <div class="card-title">
+            <div class="icon-box icon-green">
+              <i class="fa-solid fa-wallet"></i>
+            </div>
+            <span>Ingresos</span>
+          </div>
+          <button class="btn-add btn-add-green" onclick="openModal('income')">
+            <i class="fa-solid fa-plus"></i>
+          </button>
+        </div>
+        <div class="card-amount text-green" id="total-income">0,00 €</div>
+        <div class="card-footer">Suma de nómina e ingresos extra</div>
+      </div>
+
+      <!-- Tarjeta 2: Gastos -->
+      <div class="card card-expense">
+        <div class="card-header">
+          <div class="card-title">
+            <div class="icon-box icon-red">
+              <i class="fa-solid fa-cart-shopping"></i>
+            </div>
+            <span>Gastos</span>
+          </div>
+          <button class="btn-add btn-add-red" onclick="openModal('expense')">
+            <i class="fa-solid fa-plus"></i>
+          </button>
+        </div>
+        <div class="card-amount text-red" id="total-expense">0,00 €</div>
+        <div class="card-footer">Total fijos y diarios acumulados</div>
+      </div>
+
+    </section>
+
+    <!-- Sección de Historial de Movimientos -->
+    <section class="table-section">
+      <div class="table-header">
+        <h2>Historial de Movimientos</h2>
+        <span class="count-badge" id="tx-count">0 registros</span>
+      </div>
+
+      <div class="table-container">
+        <table class="tx-table">
+          <thead>
+            <tr>
+              <th>Concepto</th>
+              <th>Tipo</th>
+              <th>Fecha</th>
+              <th class="text-right">Importe</th>
+              <th class="text-center">Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="tx-list">
+            <!-- Filas dinámicas -->
+          </tbody>
+        </table>
+        
+        <div id="empty-state" class="empty-state hidden">
+          <i class="fa-regular fa-folder-open"></i>
+          <p>No hay movimientos registrados en este ciclo.</p>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- Modal para Añadir Movimiento Normal (Con eliminación de chips) -->
+  <div id="modal" class="modal-overlay hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="modal-title">Añadir Movimiento</h3>
+        <button class="btn-close" onclick="closeModal()">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <form id="tx-form" onsubmit="handleFormSubmit(event)">
+        <input type="hidden" id="tx-type">
+
+        <div class="form-group">
+          <label for="tx-amount">Importe (€)</label>
+          <input type="number" id="tx-amount" step="0.01" min="0.01" placeholder="0.00" required autofocus>
+        </div>
+
+        <div class="form-group">
+          <label for="tx-concept">Concepto</label>
+          <input type="text" id="tx-concept" placeholder="Ej: Alquiler, Fiesta, Mercadona..." autocomplete="off" required>
+        </div>
+
+        <!-- Chips de conceptos con opción de borrado -->
+        <div class="form-group">
+          <label class="label-sm">Tus conceptos guardados:</label>
+          <div id="saved-chips" class="chips-container">
+            <!-- Se llenarán solos a medida que añadas conceptos -->
+          </div>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn-cancel" onclick="closeModal()">Cancelar</button>
+          <button type="submit" class="btn-primary">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal Calculadora de Eventos -->
+  <div id="calc-modal" class="modal-overlay hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-calculator" style="color: #60a5fa;"></i> Simulador de Eventos</h3>
+        <button class="btn-close" onclick="closeCalcModal()">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <p class="calc-subtitle">Calcula cuánto te quedaría si realizas un gasto extraordinario a futuro (ej. Concierto, Viaje, Regalo).</p>
+
+      <div class="form-group">
+        <label for="calc-event-name">Nombre del Evento / Compra</label>
+        <input type="text" id="calc-event-name" placeholder="Ej: Concierto Rock, Viaje..." autocomplete="off">
+      </div>
+
+      <div class="form-group">
+        <label for="calc-event-amount">Coste Estimado (€)</label>
+        <input type="number" id="calc-event-amount" step="0.01" min="0" placeholder="0.00" oninput="calculateEventSimulation()">
+      </div>
+
+      <!-- Resultado de la simulación -->
+      <div class="simulation-result-box">
+        <span class="sim-label">Dinero disponible tras el evento:</span>
+        <div class="sim-amount" id="sim-final-amount">0,00 €</div>
+      </div>
+
+      <div class="modal-actions" style="justify-content: center;">
+        <button type="button" class="btn-primary" style="width: 100%;" onclick="closeCalcModal()">Entendido</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- JS Principal -->
+  <script src="app.js"></script>
+</body>
+</html>
