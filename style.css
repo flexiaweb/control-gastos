@@ -357,11 +357,34 @@ body {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 18px;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 .table-header h2 {
   font-size: 1.1rem;
   font-weight: 700;
+}
+
+.table-header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.month-selector-input {
+  padding: 6px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  font-size: 0.8rem;
+  outline: none;
+  background-color: #f8fafc;
+  color: var(--text-main);
+  font-weight: 600;
+}
+
+.month-selector-input:focus {
+  border-color: var(--primary-black);
 }
 
 .count-badge {

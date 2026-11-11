@@ -22,9 +22,10 @@ const db = getFirestore(app);
 let transactions = [];
 let savedConcepts = JSON.parse(localStorage.getItem('my_finances_concepts')) || [];
 
-// Control de Paginación
+// Control de Paginación y Filtro de Mes para la Tabla
 let currentPage = 1;
 const recordsPerPage = 10;
+let selectedHistoryMonth = null; // Se inicializará con el mes actual al arrancar
 
 // Configuración de tipos
 const TYPE_CONFIG = {
@@ -37,6 +38,7 @@ document.addEventListener('DOMContentLoaded', () => {
   updateClock();
   setInterval(updateClock, 1000);
   setupCycleProgress();
+  initMonthSelector();
   initEventListeners();
 
   // Vigilar estado de autenticación
@@ -51,6 +53,24 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 });
+
+// Inicializar el selector de mes con el mes actual (YYYY-MM)
+function initMonthSelector() {
+  const monthInput = document.getElementById('history-month-selector');
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  selectedHistoryMonth = `${year}-${month}`;
+  
+  if (monthInput) {
+    monthInput.value = selectedHistoryMonth;
+    monthInput.addEventListener('change', (e) => {
+      selectedHistoryMonth = e.target.value;
+      currentPage = 1;
+      renderTable();
+    });
+  }
+}
 
 // Función de Inicio de Sesión
 window.handleLogin = async function(e) {
@@ -139,7 +159,7 @@ async function loadTransactionsFromFirebase() {
   }
 }
 
-// Ordenar transacciones por fecha metida de más reciente a más antigua
+// Ordenar transacciones por fecha de más reciente a más antigua
 function sortTransactions() {
   transactions.sort((a, b) => {
     const dateA = new Date(a.rawDate || a.createdAt || 0);
@@ -157,34 +177,8 @@ function renderApp() {
   renderTable();
 }
 
-// Obtener los límites del mes en curso (Día 1 al último día)
-function getCurrentMonthBounds() {
-  const now = new Date();
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
-  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
-  return { startOfMonth, endOfMonth };
-}
-
-// Obtener la fecha de la última nómina para el ciclo de ingresos
-function getLastPayrollDate() {
-  const payrolls = transactions
-    .filter(t => t.concept && t.concept.toLowerCase().includes('nomin'))
-    .sort((a, b) => new Date(b.rawDate || b.createdAt) - new Date(a.rawDate || a.createdAt));
-
-  if (payrolls.length > 0) {
-    const pDate = new Date(payrolls[0].rawDate || payrolls[0].createdAt);
-    pDate.setHours(0, 0, 0, 0);
-    return pDate;
-  }
-  
-  return getCurrentMonthBounds().startOfMonth;
-}
-
-// Cálculo de totales con lógica de mes natural y ciclo de nómina
+// Cálculo de totales general (como estaba originalmente)
 function calculateTotals() {
-  const { startOfMonth, endOfMonth } = getCurrentMonthBounds();
-  const lastPayrollDate = getLastPayrollDate();
-
   let totalIncome = 0;
   let totalExpense = 0;
   let totalSavings = 0;
@@ -193,19 +187,13 @@ function calculateTotals() {
     const amount = parseFloat(t.amount) || 0;
     const type = t.type ? t.type.toLowerCase() : '';
     const concept = t.concept ? t.concept.toLowerCase() : '';
-    const txDate = new Date(t.rawDate || t.createdAt);
 
-    // 1. INGRESOS: Se cuentan desde la fecha de la ÚLTIMA NÓMINA en adelante
-    if (type === 'income' && txDate >= lastPayrollDate) {
+    if (type === 'income') {
       totalIncome += amount;
-    }
-
-    // 2. GASTOS: Se cuentan estrictamente dentro del MES EN CURSO (Día 1 al final del mes)
-    if (type === 'expense' && txDate >= startOfMonth && txDate <= endOfMonth) {
+    } else if (type === 'expense') {
       totalExpense += amount;
     }
 
-    // 3. AHORROS: Suma total histórica de todos los conceptos con "ahorro"
     if (concept.includes('ahorro')) {
       totalSavings += amount;
     }
@@ -273,7 +261,7 @@ function setupCycleProgress() {
   if (starMarker) starMarker.style.left = `${starPercentage}%`;
 }
 
-// Renderizado de Tabla: Filtrado exclusivo para los movimientos del MES EN CURSO
+// Renderizado de Tabla: Filtrado por el mes seleccionado en el selector
 function renderTable() {
   const tbody = document.getElementById('tx-list');
   const emptyState = document.getElementById('empty-state');
@@ -282,18 +270,17 @@ function renderTable() {
 
   if (!tbody) return;
 
-  const { startOfMonth, endOfMonth } = getCurrentMonthBounds();
-
-  // Filtrar solo movimientos que correspondan al mes actual
-  const currentMonthTransactions = transactions.filter(t => {
-    const txDate = new Date(t.rawDate || t.createdAt);
-    return txDate >= startOfMonth && txDate <= endOfMonth;
+  // Filtrar transacciones según el mes seleccionado en el input (YYYY-MM)
+  const filteredTransactions = transactions.filter(t => {
+    const txDateStr = t.rawDate; // Formato YYYY-MM-DD
+    if (!txDateStr) return false;
+    return txDateStr.startsWith(selectedHistoryMonth);
   });
 
   tbody.innerHTML = '';
-  if (countBadge) countBadge.textContent = `${currentMonthTransactions.length} registros`;
+  if (countBadge) countBadge.textContent = `${filteredTransactions.length} registros`;
 
-  if (currentMonthTransactions.length === 0) {
+  if (filteredTransactions.length === 0) {
     if (emptyState) emptyState.classList.remove('hidden');
     if (paginationControls) paginationControls.style.display = 'none';
     return;
@@ -302,14 +289,14 @@ function renderTable() {
   if (emptyState) emptyState.classList.add('hidden');
   if (paginationControls) paginationControls.style.display = 'flex';
 
-  // Lógica de Paginación para los registros del mes
-  const totalPages = Math.ceil(currentMonthTransactions.length / recordsPerPage) || 1;
+  // Lógica de Paginación
+  const totalPages = Math.ceil(filteredTransactions.length / recordsPerPage) || 1;
   if (currentPage > totalPages) currentPage = totalPages;
   if (currentPage < 1) currentPage = 1;
 
   const start = (currentPage - 1) * recordsPerPage;
   const end = start + recordsPerPage;
-  const paginatedTransactions = currentMonthTransactions.slice(start, end);
+  const paginatedTransactions = filteredTransactions.slice(start, end);
 
   paginatedTransactions.forEach(t => {
     const tr = document.createElement('tr');
@@ -440,17 +427,8 @@ function closeCalcModal() {
 window.closeCalcModal = closeCalcModal;
 
 window.calculateEventSimulation = function() {
-  const { startOfMonth, endOfMonth } = getCurrentMonthBounds();
-  const lastPayrollDate = getLastPayrollDate();
-
-  const totalIncome = transactions
-    .filter(t => t.type === 'income' && new Date(t.rawDate || t.createdAt) >= lastPayrollDate)
-    .reduce((acc, t) => acc + (parseFloat(t.amount) || 0), 0);
-
-  const totalExpense = transactions
-    .filter(t => t.type === 'expense' && new Date(t.rawDate || t.createdAt) >= startOfMonth && new Date(t.rawDate || t.createdAt) <= endOfMonth)
-    .reduce((acc, t) => acc + (parseFloat(t.amount) || 0), 0);
-
+  const totalIncome = transactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
+  const totalExpense = transactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
   const currentRemaining = totalIncome - totalExpense;
 
   const eventAmountEl = document.getElementById('calc-event-amount');

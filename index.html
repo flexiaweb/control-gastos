@@ -105,7 +105,7 @@
           </button>
         </div>
         <div class="card-amount text-green" id="total-income">0,00 €</div>
-        <div class="card-footer">Desde la última nómina adjuntada</div>
+        <div class="card-footer">Suma total de ingresos</div>
       </div>
 
       <!-- Tarjeta 2: Gastos -->
@@ -122,7 +122,7 @@
           </button>
         </div>
         <div class="card-amount text-red" id="total-expense">0,00 €</div>
-        <div class="card-footer">Mes actual (Día 1 a fin de mes)</div>
+        <div class="card-footer">Suma total de gastos</div>
       </div>
 
     </section>
@@ -131,7 +131,11 @@
     <section class="table-section">
       <div class="table-header">
         <h2>Historial de Movimientos</h2>
-        <span class="count-badge" id="tx-count">0 registros</span>
+        <div class="table-header-right">
+          <!-- Selector de Mes para el Historial -->
+          <input type="month" id="history-month-selector" class="month-selector-input" title="Seleccionar mes">
+          <span class="count-badge" id="tx-count">0 registros</span>
+        </div>
       </div>
 
       <div class="table-container">
