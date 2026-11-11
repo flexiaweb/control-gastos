@@ -105,7 +105,7 @@
           </button>
         </div>
         <div class="card-amount text-green" id="total-income">0,00 €</div>
-        <div class="card-footer">Suma de nómina e ingresos extra</div>
+        <div class="card-footer">Desde la última nómina adjuntada</div>
       </div>
 
       <!-- Tarjeta 2: Gastos -->
@@ -122,7 +122,7 @@
           </button>
         </div>
         <div class="card-amount text-red" id="total-expense">0,00 €</div>
-        <div class="card-footer">Total fijos y diarios acumulados</div>
+        <div class="card-footer">Mes actual (Día 1 a fin de mes)</div>
       </div>
 
     </section>
@@ -152,7 +152,7 @@
         
         <div id="empty-state" class="empty-state hidden">
           <i class="fa-regular fa-folder-open"></i>
-          <p>No hay movimientos registrados en este ciclo.</p>
+          <p>No hay movimientos registrados en este mes.</p>
         </div>
       </div>
 
@@ -170,7 +170,7 @@
 
   </div>
 
-  <!-- Modal para Añadir Movimiento (Con selector de fecha y chips) -->
+  <!-- Modal para Añadir Movimiento -->
   <div id="modal" class="modal-overlay hidden">
     <div class="modal-content">
       <div class="modal-header">
@@ -190,21 +190,17 @@
 
         <div class="form-group">
           <label for="tx-concept">Concepto</label>
-          <input type="text" id="tx-concept" placeholder="Ej: Alquiler, Fiesta, Ahorros..." autocomplete="off" required>
+          <input type="text" id="tx-concept" placeholder="Ej: Nómina, Alquiler, Ahorros..." autocomplete="off" required>
         </div>
 
-        <!-- Selector de Fecha Personalizado -->
         <div class="form-group">
           <label for="tx-date">Fecha</label>
           <input type="date" id="tx-date" required>
         </div>
 
-        <!-- Chips de conceptos con opción de borrado -->
         <div class="form-group">
           <label class="label-sm">Tus conceptos guardados:</label>
-          <div id="saved-chips" class="chips-container">
-            <!-- Se llenarán solos a medida que añadas conceptos -->
-          </div>
+          <div id="saved-chips" class="chips-container"></div>
         </div>
 
         <div class="modal-actions">
@@ -260,7 +256,6 @@
         <input type="number" id="calc-event-amount" step="0.01" min="0" placeholder="0.00" oninput="calculateEventSimulation()">
       </div>
 
-      <!-- Resultado de la simulación -->
       <div class="simulation-result-box">
         <span class="sim-label">Dinero disponible tras el evento:</span>
         <div class="sim-amount" id="sim-final-amount">0,00 €</div>

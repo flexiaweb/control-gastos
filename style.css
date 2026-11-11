@@ -618,7 +618,7 @@ body {
    ================================---------- */
 @media screen and (max-width: 600px) {
   body {
-    padding: 12px 8px; /* Reduce los márgenes exteriores en móvil */
+    padding: 12px 8px;
   }
 
   .app-container {
@@ -626,7 +626,6 @@ body {
     max-width: 100%;
   }
 
-  /* Encabezado: Apilar fecha/hora y botones verticalmente para que no se salgan */
   .app-header {
     flex-direction: column;
     align-items: flex-start;
@@ -647,13 +646,12 @@ body {
     font-size: 0.8rem;
   }
 
-  /* Tarjeta principal de dinero disponible */
   .hero-balance-card {
     padding: 18px 16px;
   }
 
   .hero-amount {
-    font-size: 2.3rem; /* Reduce un poco el número gigante para que quepa bien */
+    font-size: 2.3rem;
   }
 
   .hero-header {
@@ -667,13 +665,11 @@ body {
     justify-content: space-between;
   }
 
-  /* Tarjetas de ingresos y gastos */
   .cards-grid {
-    grid-template-columns: 1fr; /* Una tarjeta debajo de otra en móvil */
+    grid-template-columns: 1fr;
     gap: 12px;
   }
 
-  /* Modales adaptados a la pantalla del móvil con margen */
   .modal-content {
     width: 95%;
     max-width: 100%;
@@ -681,7 +677,6 @@ body {
     padding: 18px;
   }
 
-  /* Tabla de movimientos con desplazamiento horizontal seguro */
   .table-section {
     padding: 14px 10px;
   }
@@ -693,10 +688,9 @@ body {
   }
 
   .tx-table {
-    min-width: 450px; /* Asegura que la tabla no se aplaste feo pero permita scroll horizontal */
+    min-width: 450px;
   }
 
-  /* Paginación en móvil */
   .pagination-container {
     flex-direction: row;
     gap: 6px;

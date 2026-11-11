@@ -157,8 +157,34 @@ function renderApp() {
   renderTable();
 }
 
-// Cálculo de totales, Queda Real y Total Ahorros directamente desde Firebase
+// Obtener los límites del mes en curso (Día 1 al último día)
+function getCurrentMonthBounds() {
+  const now = new Date();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+  return { startOfMonth, endOfMonth };
+}
+
+// Obtener la fecha de la última nómina para el ciclo de ingresos
+function getLastPayrollDate() {
+  const payrolls = transactions
+    .filter(t => t.concept && t.concept.toLowerCase().includes('nomin'))
+    .sort((a, b) => new Date(b.rawDate || b.createdAt) - new Date(a.rawDate || a.createdAt));
+
+  if (payrolls.length > 0) {
+    const pDate = new Date(payrolls[0].rawDate || payrolls[0].createdAt);
+    pDate.setHours(0, 0, 0, 0);
+    return pDate;
+  }
+  
+  return getCurrentMonthBounds().startOfMonth;
+}
+
+// Cálculo de totales con lógica de mes natural y ciclo de nómina
 function calculateTotals() {
+  const { startOfMonth, endOfMonth } = getCurrentMonthBounds();
+  const lastPayrollDate = getLastPayrollDate();
+
   let totalIncome = 0;
   let totalExpense = 0;
   let totalSavings = 0;
@@ -167,15 +193,19 @@ function calculateTotals() {
     const amount = parseFloat(t.amount) || 0;
     const type = t.type ? t.type.toLowerCase() : '';
     const concept = t.concept ? t.concept.toLowerCase() : '';
+    const txDate = new Date(t.rawDate || t.createdAt);
 
-    // 1. Acumular Ingresos y Gastos generales
-    if (type === 'income') {
+    // 1. INGRESOS: Se cuentan desde la fecha de la ÚLTIMA NÓMINA en adelante
+    if (type === 'income' && txDate >= lastPayrollDate) {
       totalIncome += amount;
-    } else if (type === 'expense') {
+    }
+
+    // 2. GASTOS: Se cuentan estrictamente dentro del MES EN CURSO (Día 1 al final del mes)
+    if (type === 'expense' && txDate >= startOfMonth && txDate <= endOfMonth) {
       totalExpense += amount;
     }
 
-    // 2. Si el concepto contiene "ahorro", sumar al bote de ahorros independientemente del tipo
+    // 3. AHORROS: Suma total histórica de todos los conceptos con "ahorro"
     if (concept.includes('ahorro')) {
       totalSavings += amount;
     }
@@ -196,7 +226,7 @@ function calculateTotals() {
   calculateEventSimulation();
 }
 
-// Lógica del ciclo
+// Lógica del ciclo de nómina visual
 function setupCycleProgress() {
   const now = new Date();
   const day = now.getDate();
@@ -243,7 +273,7 @@ function setupCycleProgress() {
   if (starMarker) starMarker.style.left = `${starPercentage}%`;
 }
 
-// Renderizado de Tabla con Paginación (10 registros por página)
+// Renderizado de Tabla: Filtrado exclusivo para los movimientos del MES EN CURSO
 function renderTable() {
   const tbody = document.getElementById('tx-list');
   const emptyState = document.getElementById('empty-state');
@@ -252,10 +282,18 @@ function renderTable() {
 
   if (!tbody) return;
 
-  tbody.innerHTML = '';
-  if (countBadge) countBadge.textContent = `${transactions.length} registros`;
+  const { startOfMonth, endOfMonth } = getCurrentMonthBounds();
 
-  if (transactions.length === 0) {
+  // Filtrar solo movimientos que correspondan al mes actual
+  const currentMonthTransactions = transactions.filter(t => {
+    const txDate = new Date(t.rawDate || t.createdAt);
+    return txDate >= startOfMonth && txDate <= endOfMonth;
+  });
+
+  tbody.innerHTML = '';
+  if (countBadge) countBadge.textContent = `${currentMonthTransactions.length} registros`;
+
+  if (currentMonthTransactions.length === 0) {
     if (emptyState) emptyState.classList.remove('hidden');
     if (paginationControls) paginationControls.style.display = 'none';
     return;
@@ -264,14 +302,14 @@ function renderTable() {
   if (emptyState) emptyState.classList.add('hidden');
   if (paginationControls) paginationControls.style.display = 'flex';
 
-  // Lógica de Paginación
-  const totalPages = Math.ceil(transactions.length / recordsPerPage) || 1;
+  // Lógica de Paginación para los registros del mes
+  const totalPages = Math.ceil(currentMonthTransactions.length / recordsPerPage) || 1;
   if (currentPage > totalPages) currentPage = totalPages;
   if (currentPage < 1) currentPage = 1;
 
   const start = (currentPage - 1) * recordsPerPage;
   const end = start + recordsPerPage;
-  const paginatedTransactions = transactions.slice(start, end);
+  const paginatedTransactions = currentMonthTransactions.slice(start, end);
 
   paginatedTransactions.forEach(t => {
     const tr = document.createElement('tr');
@@ -402,8 +440,17 @@ function closeCalcModal() {
 window.closeCalcModal = closeCalcModal;
 
 window.calculateEventSimulation = function() {
-  const totalIncome = transactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
-  const totalExpense = transactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
+  const { startOfMonth, endOfMonth } = getCurrentMonthBounds();
+  const lastPayrollDate = getLastPayrollDate();
+
+  const totalIncome = transactions
+    .filter(t => t.type === 'income' && new Date(t.rawDate || t.createdAt) >= lastPayrollDate)
+    .reduce((acc, t) => acc + (parseFloat(t.amount) || 0), 0);
+
+  const totalExpense = transactions
+    .filter(t => t.type === 'expense' && new Date(t.rawDate || t.createdAt) >= startOfMonth && new Date(t.rawDate || t.createdAt) <= endOfMonth)
+    .reduce((acc, t) => acc + (parseFloat(t.amount) || 0), 0);
+
   const currentRemaining = totalIncome - totalExpense;
 
   const eventAmountEl = document.getElementById('calc-event-amount');
